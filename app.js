@@ -2,49 +2,79 @@
   "use strict";
   const D = window.SALES_DATA;
   const $ = (id) => document.getElementById(id);
-  const fmt = (n) => n.toLocaleString("uk-UA").replace(/ /g, " ");
+  const fmt = (n) => Number(n).toLocaleString("uk-UA").replace(/ /g, " ");
 
-  const PAY = [
-    { key: "9", def: true, label: (a) => `щомісяця — ${fmt(a)} грн (9 платежів на рік)` },
-    { key: "3", def: true, label: (a) => `3 рази на рік — ${fmt(a)} грн` },
-    { key: "2", def: false, label: (a) => `2 рази на рік — ${fmt(a)} грн` },
-    { key: "1", def: false, label: (a) => `раз на рік — ${fmt(a)} грн` },
-    { key: "full", def: true, label: (a) => `весь курс одразу — ${fmt(a)} грн` },
-  ];
+  // ---------- оплата ----------
+  const PAY_ORDER = ["12", "10", "9", "3", "2", "1", "full"];
+  const MONTHLY = ["9", "10", "12"];
+  function payLabel(key, amount) {
+    const a = `${fmt(amount)} грн`;
+    if (key === "full") return `весь курс одразу — ${a}`;
+    if (MONTHLY.includes(key)) return `щомісяця — ${a}`;
+    if (key === "1") return `раз на рік — ${a}`;
+    return `${key} рази на рік — ${a}`;
+  }
 
   function years(months) {
-    const y = Math.round(months / 12);
+    if (months < 12) return `${months} міс.`;
+    const y = Math.round((months / 12) * 10) / 10;
+    if (!Number.isInteger(y)) return `${String(y).replace(".", ",")} року`;
     const w = y % 10 === 1 && y % 100 !== 11 ? "рік"
       : [2, 3, 4].includes(y % 10) && ![12, 13, 14].includes(y % 100) ? "роки" : "років";
     return `${y} ${w}`;
   }
-  const productLabel = (p) => `${p.title} · ${p.format} · ${years(p.months)}`;
 
-  // ---------- форма ----------
+  // ---------- список програм (з розділами) ----------
   const sel = $("product");
-  D.products.forEach((p, i) => sel.add(new Option(productLabel(p), i)));
-  let productTouched = false;
-  sel.addEventListener("change", () => { productTouched = true; });
-
-  const payBox = $("payChecks");
-  PAY.forEach((o) => {
-    const l = document.createElement("label");
-    l.innerHTML = `<input type="checkbox" data-pay="${o.key}" ${o.def ? "checked" : ""}> <span></span>`;
-    payBox.appendChild(l);
+  const groups = {};
+  D.products.forEach((p, i) => {
+    if (!groups[p.group]) {
+      groups[p.group] = document.createElement("optgroup");
+      groups[p.group].label = p.group;
+      sel.appendChild(groups[p.group]);
+    }
+    groups[p.group].appendChild(new Option(p.label, i));
   });
+  let productTouched = false;
 
-  // Автовибір програми за віком і днями, поки менеджер не вибрав сам.
+  // Автовибір МКА за віком і днями, поки менеджер не вибрав програму сам.
   function autoPick() {
     if (productTouched) return;
     const age = parseInt($("age").value, 10);
-    const days = $("days").value.toLowerCase();
-    const weekend = /сб|суб|нд|нед|вихід/.test(days);
-    const format = weekend ? "вихідні" : "будні";
-    let title = null;
-    if (age >= 9 && age <= 12) title = "МКА 9–12 років";
-    else if (age >= 13 && age <= 14) title = "МКА 13–14 років";
-    const i = D.products.findIndex((p) => (!title || p.title === title) && p.format === format);
-    if (i >= 0) sel.value = i;
+    const weekend = /сб|суб|нд|нед|вихід/i.test($("days").value);
+    let prefix = null;
+    if (age >= 9 && age <= 12) prefix = "МКА 9–12";
+    else if (age >= 13 && age <= 14) prefix = "МКА 13–14";
+    if (!prefix) return;
+    const i = D.products.findIndex((p) => p.label.startsWith(prefix) && p.format === (weekend ? "вихідні" : "будні"));
+    if (i >= 0) { sel.value = i; onProduct(); }
+  }
+
+  // ---------- варіанти оплати та теми під вибрану програму ----------
+  const payBox = $("payChecks");
+  let topicsKey = null;
+  let topicsTouched = false;
+
+  function onProduct() {
+    const p = D.products[sel.value];
+    const keys = PAY_ORDER.filter((k) => p.pay[k]);
+    const monthly = keys.find((k) => MONTHLY.includes(k));
+    const defaults = new Set([monthly, "full"].filter((k) => k && p.pay[k]));
+    if (defaults.size === 0) keys.slice(0, 2).forEach((k) => defaults.add(k));
+    payBox.innerHTML = "";
+    keys.forEach((k) => {
+      const l = document.createElement("label");
+      const box = document.createElement("input");
+      box.type = "checkbox"; box.dataset.pay = k; box.checked = defaults.has(k);
+      l.append(box, " " + payLabel(k, p.pay[k]));
+      payBox.appendChild(l);
+    });
+
+    if (p.topics !== topicsKey) {
+      topicsKey = p.topics;
+      const list = (D.topics && D.topics[p.topics]) || [];
+      if (list.length || !topicsTouched) { $("topics").value = list.join("\n"); topicsTouched = false; }
+    }
   }
 
   // Ім'я і телефон менеджера запам'ятовуються в браузері.
@@ -52,9 +82,14 @@
     get(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } },
   };
-  ["manager", "phone"].forEach((k) => {
-    $(k).value = store.get("sm_" + k);
-    $(k).addEventListener("input", () => store.set("sm_" + k, $(k).value));
+  const locSel = $("location");
+  (D.branch.locations || []).forEach((l, i) => locSel.add(new Option(l, i)));
+  locSel.add(new Option("— не вказувати адресу —", ""));
+
+  ["manager", "phone", "location"].forEach((k) => {
+    const v = store.get("sm_" + k);
+    if (v !== "" || k !== "location") $(k).value = v;
+    $(k).addEventListener(k === "location" ? "change" : "input", () => store.set("sm_" + k, $(k).value));
   });
 
   // ---------- шаблони ----------
@@ -70,17 +105,18 @@
   let len = "std";
   const pick = (arr) => arr[variant % arr.length];
 
-  function nextStep(p, f) {
-    const addr = D.branch.address ? ` за адресою ${D.branch.address}` : "";
+  function nextStep(f, self) {
+    const loc = (D.branch.locations || [])[f.location];
+    const addr = loc ? ` за адресою: ${loc}` : "";
     switch (f.step) {
       case "trial":
-        return "Пропоную почати з пробного заняття — так дитина відчує атмосферу, а Ви побачите, як проходять уроки. " +
-          (f.when ? `Записати на пробне заняття ${f.when}? Достатньо відповісти «так» 🙂` : "Коли Вам зручно прийти?");
+        return `Пропоную почати з пробного заняття — так ${self ? "Ви відчуєте атмосферу і побачите" : "дитина відчує атмосферу, а Ви побачите"}, як проходять уроки. ` +
+          (f.when ? `Записати на пробне заняття ${f.when}${addr}? Достатньо відповісти «так» 🙂` : "Коли Вам зручно прийти?");
       case "contract":
-        return `Щоб закріпити місце в групі, залишилось оформити договір і внести вступний внесок (${fmt(p.entranceFee)} грн).` +
+        return "Щоб закріпити місце в групі, залишилось оформити договір." +
           (f.when ? ` Чекаю Вас ${f.when}${addr}. Підтвердите?` : " Коли Вам зручно це зробити?");
       case "visit":
-        return `Запрошую Вас у філію${addr}: покажу класи і відповім на всі запитання.` +
+        return `Запрошую Вас у філію${addr}. Покажу, де проходить навчання, і відповім на всі запитання.` +
           (f.when ? ` Пропоную ${f.when} — Вам зручно?` : " Коли Вам зручно під'їхати?");
       default:
         return "Якщо з'являться запитання — пишіть, я на зв'язку." +
@@ -90,86 +126,72 @@
 
   function build() {
     const f = {};
-    ["client", "child", "age", "interests", "important", "days", "time", "start", "step", "when", "promo", "manager", "phone"]
+    ["client", "learner", "child", "age", "interests", "important", "days", "time", "start", "topics", "step", "when", "location", "promo", "manager", "phone"]
       .forEach((k) => (f[k] = $(k).value.trim()));
+    const self = f.learner === "self";
+    document.querySelectorAll(".childOnly").forEach((el) => (el.hidden = self));
     const p = D.products[sel.value];
-    const dir = D.directions[p.direction] || { name: "", about: "", benefits: [] };
     const warn = [];
 
-    // ціна для підказки менеджеру + підписи чекбоксів
-    payBox.querySelectorAll("label").forEach((l, i) => {
-      const o = PAY[i];
-      const amount = o.key === "full" ? p.fullPrice : p.perYear[o.key];
-      l.querySelector("span").textContent = amount ? o.label(amount) : `${o.key} — немає`;
-      l.querySelector("input").disabled = !amount;
-    });
-    $("priceInfo").textContent =
-      `${productLabel(p)} · ${p.pairs} пар · вступний внесок ${fmt(p.entranceFee)} грн · код ${p.code}`;
-
-    const chosen = PAY.filter((o) => {
-      const box = payBox.querySelector(`[data-pay="${o.key}"]`);
-      const amount = o.key === "full" ? p.fullPrice : p.perYear[o.key];
-      return box.checked && amount;
-    });
+    const chosen = [...payBox.querySelectorAll("input:checked")].map((b) => b.dataset.pay);
+    const topics = f.topics.split("\n").map((t) => t.replace(/^[•\-–*\s]+/, "").trim()).filter(Boolean);
+    const student = self ? "" : f.child || "дитина";
 
     const L = [];
-    const name = f.client || "[ім'я клієнта]";
     if (!f.client) warn.push("вкажи ім'я клієнта");
-    L.push(`${pick(GREET)}, ${name}! ${len === "short" ? "Дякую за розмову, надсилаю головне." : pick(THANKS)}`);
+    L.push(`${pick(GREET)}, ${f.client || "[ім'я клієнта]"}! ${len === "short" ? "Дякую за розмову, надсилаю головне." : pick(THANKS)}`);
     L.push("");
 
-    const who = [f.child, f.age && `${f.age} р.`].filter(Boolean).join(", ");
-    const forWhom = who ? ` (${who})` : "";
-    L.push(`📚 Програма: ${dir.name ? dir.name + " — " : ""}${p.title}${forWhom}`);
+    const who = self ? "" : [f.child, f.age && `${f.age} р.`].filter(Boolean).join(", ");
+    L.push(`📚 Програма: ${p.title}${who ? ` — ${who}` : ""}`);
     const sched = [f.days, f.time && `о ${f.time}`].filter(Boolean).join(", ");
-    L.push(`🗓 Графік: ${sched ? sched + " · " : ""}${p.format}`);
+    if (sched || p.format) L.push(`🗓 Графік: ${[sched, p.format].filter(Boolean).join(" · ")}`);
+    else warn.push("не вказаний графік");
     if (f.start) L.push(`🚀 Старт: ${f.start}`);
-    if (len !== "short") L.push(`⏳ Тривалість: ${years(p.months)} (${p.pairs} пар)`);
+    if (len !== "short") L.push(`⏳ Тривалість: ${years(p.months)}`);
 
-    if (len === "long" && dir.about) { L.push(""); L.push(dir.about); }
+    if (topics.length) {
+      L.push("");
+      L.push(self ? "📖 Що Ви вивчатимете:" : `📖 Що вивчатиме ${student}:`);
+      topics.slice(0, len === "short" ? 3 : len === "std" ? 5 : 10).forEach((t) => L.push(`• ${t}`));
+    } else {
+      warn.push("не заповнено «Що вивчатимуть»");
+    }
 
     if (len !== "short") {
-      if (dir.benefits.length) {
-        L.push("");
-        L.push(`Що отримає ${f.child || "дитина"}:`);
-        dir.benefits.slice(0, len === "long" ? 6 : 3).forEach((b) => L.push(`• ${b}`));
-      } else {
-        warn.push("у data.js не заповнені переваги програми — блок переваг пропущено");
-      }
       if (f.interests) {
         L.push("");
-        L.push(`Ви згадували, що ${f.child || "дитина"} цікавиться: ${f.interests}. Саме з таких інтересів і починається шлях в IT 🙂`);
+        L.push(self
+          ? `Ви згадували, що Вас цікавить: ${f.interests}. Саме з таких інтересів і починається шлях в IT 🙂`
+          : `Ви згадували, що ${student} цікавиться: ${f.interests}. Саме з таких інтересів і починається шлях в IT 🙂`);
       }
       if (f.important) L.push(`📌 Що для Вас важливо: ${f.important}.`);
     }
 
     L.push("");
-    if (len === "short") {
-      const monthly = p.perYear["9"];
-      L.push(`💰 Вступний внесок — ${fmt(p.entranceFee)} грн` + (monthly ? `, далі від ${fmt(monthly)} грн на місяць.` : "."));
+    if (!chosen.length) warn.push("не вибрано жодного варіанту оплати");
+    if (len === "short" || chosen.length === 1) {
+      const k = chosen.find((c) => MONTHLY.includes(c)) || chosen[0];
+      if (k) L.push(`💰 Вартість: ${MONTHLY.includes(k) ? `від ${fmt(p.pay[k])} грн на місяць` : payLabel(k, p.pay[k])}.`);
     } else {
       L.push("💰 Вартість:");
-      L.push(`• вступний внесок — ${fmt(p.entranceFee)} грн`);
-      chosen.forEach((o) => L.push(`• ${o.label(o.key === "full" ? p.fullPrice : p.perYear[o.key])}`));
-      if (!chosen.length) warn.push("не вибрано жодного варіанту оплати");
+      PAY_ORDER.filter((k) => chosen.includes(k)).forEach((k) => L.push(`• ${payLabel(k, p.pay[k])}`));
     }
 
     if (f.promo) { L.push(""); L.push(`🎁 ${f.promo}`); }
     if ($("fewSeats").checked) { L.push(""); L.push("Зверніть увагу: у групі на цей час залишилось небагато місць."); }
 
     L.push("");
-    L.push(nextStep(p, f));
-    if ((f.step === "contract" || f.step === "visit") && !D.branch.address) warn.push("у data.js не вказана адреса філії");
+    L.push(nextStep(f, self));
+    if ((f.step === "contract" || f.step === "visit") && f.location === "") warn.push("не вибрана локація");
 
     L.push("");
     if (len !== "short") L.push(pick(BYE));
     L.push(`${f.manager || "[твоє ім'я]"}, IT STEP ${D.branch.name}`);
     if (f.phone || D.branch.phone) L.push(f.phone || D.branch.phone);
-    if (len === "long" && D.branch.site) L.push(D.branch.site);
     if (!f.manager) warn.push("вкажи своє ім'я");
 
-    const text = L.join("\n").replace(/\n{3,}/g, "\n\n");
-    $("msg").value = text;
+    $("msg").value = L.join("\n").replace(/\n{3,}/g, "\n\n");
     $("warn").innerHTML = warn.length ? `<span class="warn">⚠️ ${warn.join(" · ")}</span>` : "";
     updateLinks();
   }
@@ -182,6 +204,8 @@
   }
 
   // ---------- події ----------
+  sel.addEventListener("change", () => { productTouched = true; onProduct(); });
+  $("topics").addEventListener("input", () => { topicsTouched = true; });
   $("form").addEventListener("input", (e) => {
     if (e.target.id === "age" || e.target.id === "days") autoPick();
     build();
@@ -206,6 +230,6 @@
     setTimeout(() => ($("toast").hidden = true), 1500);
   });
 
-  autoPick();
+  onProduct();
   build();
 })();

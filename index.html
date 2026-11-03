@@ -15,6 +15,7 @@
   --accent:#4c9be8;--accent-text:#0b1420;--soft:#1d2733;--ok:#3fb950;}
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 header{max-width:1100px;margin:0 auto;padding:20px 16px 4px}
 h1{font-size:20px;margin:0 0 4px}
@@ -35,7 +36,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
 .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{flex:1;border:0;background:transparent;color:var(--text);padding:8px;font:inherit;cursor:pointer}
 .seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-text)}
-.price{font-size:13px;color:var(--muted);background:var(--soft);border-radius:8px;padding:8px 10px;margin-top:8px}
 textarea#msg{min-height:520px;resize:vertical;line-height:1.5;white-space:pre-wrap}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .btn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:9px 14px;font:inherit;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
@@ -58,10 +58,14 @@ textarea#msg{min-height:520px;resize:vertical;line-height:1.5;white-space:pre-wr
       <legend>Клієнт</legend>
       <div class="grid">
         <label>Ім'я клієнта *<input id="client" placeholder="Марія" required></label>
-        <label>Ім'я дитини<input id="child" placeholder="Артем"></label>
-        <label>Вік дитини<input id="age" inputmode="numeric" placeholder="11"></label>
-        <label>Чим цікавиться<input id="interests" placeholder="комп'ютерні ігри"></label>
-        <label class="full">Що важливо клієнту (з розмови)<input id="important" placeholder="щоб дитина менше просто грала, а створювала щось своє"></label>
+        <label>Хто навчатиметься<select id="learner">
+          <option value="child">Дитина клієнта</option>
+          <option value="self">Сам клієнт</option>
+        </select></label>
+        <label class="childOnly">Ім'я дитини<input id="child" placeholder="Артем"></label>
+        <label>Вік<input id="age" inputmode="numeric" placeholder="11"></label>
+        <label class="full">Чим цікавиться<input id="interests" placeholder="комп'ютерні ігри, малює"></label>
+        <label class="full">Що важливо клієнту (з розмови)<input id="important" placeholder="щоб після навчання була реальна професія"></label>
       </div>
     </fieldset>
 
@@ -72,12 +76,12 @@ textarea#msg{min-height:520px;resize:vertical;line-height:1.5;white-space:pre-wr
         <label>Дні занять<input id="days" placeholder="вівторок і четвер"></label>
         <label>Час<input id="time" placeholder="17:00"></label>
         <label class="full">Дата старту<input id="start" placeholder="12 листопада"></label>
+        <label class="full">Що вивчатимуть (кожен пункт з нового рядка)<textarea id="topics" rows="4" placeholder="Python і створення власних ігор&#10;3D-моделювання&#10;Дизайн сайтів"></textarea></label>
       </div>
-      <div class="price" id="priceInfo"></div>
     </fieldset>
 
     <fieldset>
-      <legend>Які варіанти оплати показати</legend>
+      <legend>Вартість: які варіанти показати</legend>
       <div class="checks" id="payChecks"></div>
     </fieldset>
 
@@ -91,6 +95,7 @@ textarea#msg{min-height:520px;resize:vertical;line-height:1.5;white-space:pre-wr
           <option value="call">Передзвонити клієнту</option>
         </select></label>
         <label>Коли<input id="when" placeholder="у вівторок о 17:00"></label>
+        <label class="full">Локація<select id="location"></select></label>
         <label class="full">Акція / бонус (лише реальні)<input id="promo" placeholder="знижка 10% на перший рік при оплаті до 15.11"></label>
         <div class="full checks"><label><input type="checkbox" id="fewSeats"> У групі залишилось мало місць (тільки якщо це правда)</label></div>
       </div>
