@@ -5,14 +5,19 @@
   const fmt = (n) => Number(n).toLocaleString("uk-UA").replace(/ /g, " ");
 
   // ---------- оплата ----------
-  const PAY_ORDER = ["12", "10", "9", "3", "2", "1", "full"];
-  const MONTHLY = ["9", "10", "12"];
-  function payLabel(key, amount) {
-    const a = `${fmt(amount)} грн`;
-    if (key === "full") return `весь курс одразу — ${a}`;
-    if (MONTHLY.includes(key)) return `щомісяця — ${a}`;
-    if (key === "1") return `раз на рік — ${a}`;
-    return `${key} рази на рік — ${a}`;
+  const PAY_ORDER = ["12", "10", "9", "7", "6", "4", "3", "2", "1", "full"];
+  const plural = (n, one, few, many) =>
+    n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many;
+  // Щомісячна оплата: 9+ платежів на рік або стільки платежів, скільки місяців триває курс.
+  const isMonthly = (key, p) => key !== "full" && (+key >= 9 || (p.months && p.months < 12 && +key === p.months && +key > 1));
+  function payLabel(key, p) {
+    const a = `${fmt(p.pay[key])} грн`;
+    if (key === "full") return Object.keys(p.pay).length === 1 ? `вартість — ${a}` : `весь курс одразу — ${a}`;
+    if (isMonthly(key, p)) return `щомісяця — ${a}`;
+    const n = +key;
+    if (p.months && p.months > 12) return n === 1 ? `раз на рік — ${a}` : `${n} ${plural(n, "раз", "рази", "разів")} на рік — ${a}`;
+    if (n === 1) return `одним платежем — ${a}`;
+    return `${n} ${plural(n, "платіж", "платежі", "платежів")} по ${a}`;
   }
 
   function years(months) {
@@ -27,13 +32,16 @@
   // ---------- список програм (з розділами) ----------
   const sel = $("product");
   const groups = {};
+  const seen = {};
+  D.products.forEach((p) => (seen[p.label] = (seen[p.label] || 0) + 1));
   D.products.forEach((p, i) => {
     if (!groups[p.group]) {
       groups[p.group] = document.createElement("optgroup");
       groups[p.group].label = p.group;
       sel.appendChild(groups[p.group]);
     }
-    groups[p.group].appendChild(new Option(p.label, i));
+    const label = seen[p.label] > 1 && p.months ? `${p.label} · ${years(p.months)}` : p.label;
+    groups[p.group].appendChild(new Option(label, i));
   });
   let productTouched = false;
 
@@ -57,8 +65,9 @@
 
   function onProduct() {
     const p = D.products[sel.value];
-    const keys = PAY_ORDER.filter((k) => p.pay[k]);
-    const monthly = keys.find((k) => MONTHLY.includes(k));
+    const keys = PAY_ORDER.filter((k) => p.pay[k] &&
+      !(k === "full" && Object.keys(p.pay).some((m) => isMonthly(m, p) && p.pay[m] === p.pay.full)));
+    const monthly = keys.find((k) => isMonthly(k, p));
     const defaults = new Set([monthly, "full"].filter((k) => k && p.pay[k]));
     if (defaults.size === 0) keys.slice(0, 2).forEach((k) => defaults.add(k));
     payBox.innerHTML = "";
@@ -66,7 +75,7 @@
       const l = document.createElement("label");
       const box = document.createElement("input");
       box.type = "checkbox"; box.dataset.pay = k; box.checked = defaults.has(k);
-      l.append(box, " " + payLabel(k, p.pay[k]));
+      l.append(box, " " + payLabel(k, p));
       payBox.appendChild(l);
     });
 
@@ -148,7 +157,7 @@
     if (sched || p.format) L.push(`🗓 Графік: ${[sched, p.format].filter(Boolean).join(" · ")}`);
     else warn.push("не вказаний графік");
     if (f.start) L.push(`🚀 Старт: ${f.start}`);
-    if (len !== "short") L.push(`⏳ Тривалість: ${years(p.months)}`);
+    if (len !== "short" && p.months) L.push(`⏳ Тривалість: ${years(p.months)}`);
 
     if (topics.length) {
       L.push("");
@@ -171,11 +180,12 @@
     L.push("");
     if (!chosen.length) warn.push("не вибрано жодного варіанту оплати");
     if (len === "short" || chosen.length === 1) {
-      const k = chosen.find((c) => MONTHLY.includes(c)) || chosen[0];
-      if (k) L.push(`💰 Вартість: ${MONTHLY.includes(k) ? `від ${fmt(p.pay[k])} грн на місяць` : payLabel(k, p.pay[k])}.`);
+      const k = chosen.find((c) => isMonthly(c, p)) || chosen[0];
+      if (k) L.push(`💰 Вартість: ${isMonthly(k, p) ? `від ${fmt(p.pay[k])} грн на місяць`
+        : k === "full" ? `${fmt(p.pay[k])} грн` : payLabel(k, p)}.`);
     } else {
       L.push("💰 Вартість:");
-      PAY_ORDER.filter((k) => chosen.includes(k)).forEach((k) => L.push(`• ${payLabel(k, p.pay[k])}`));
+      PAY_ORDER.filter((k) => chosen.includes(k)).forEach((k) => L.push(`• ${payLabel(k, p)}`));
     }
 
     if (f.promo) { L.push(""); L.push(`🎁 ${f.promo}`); }
