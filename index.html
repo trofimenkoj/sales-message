@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Повідомлення клієнту</title>
+<meta name="robots" content="noindex">
+<style>
+:root{
+  --bg:#f6f7f9;--card:#fff;--text:#16181d;--muted:#5f6673;--line:#dfe2e8;
+  --accent:#0b6bcb;--accent-text:#fff;--soft:#eef4fb;--ok:#1a7f37;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#111317;--card:#1a1d23;--text:#e8eaee;--muted:#9aa2ae;--line:#2c313a;
+  --accent:#4c9be8;--accent-text:#0b1420;--soft:#1d2733;--ok:#3fb950;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{max-width:1100px;margin:0 auto;padding:20px 16px 4px}
+h1{font-size:20px;margin:0 0 4px}
+header p{margin:0;color:var(--muted)}
+main{max-width:1100px;margin:0 auto;padding:12px 16px 40px;display:grid;gap:16px;grid-template-columns:1fr}
+@media (min-width:900px){main{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}.out{position:sticky;top:12px}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+fieldset{border:0;margin:0 0 14px;padding:0}
+legend{font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px}
+.grid{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+.grid .full{grid-column:1/-1}
+label{display:block;font-size:13px;color:var(--muted)}
+input,select,textarea{width:100%;margin-top:4px;padding:9px 10px;font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:8px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.checks{display:flex;flex-wrap:wrap;gap:6px 14px}
+.checks label{display:flex;gap:6px;align-items:center;color:var(--text);font-size:14px}
+.checks input{width:auto;margin:0}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{flex:1;border:0;background:transparent;color:var(--text);padding:8px;font:inherit;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-text)}
+.price{font-size:13px;color:var(--muted);background:var(--soft);border-radius:8px;padding:8px 10px;margin-top:8px}
+textarea#msg{min-height:520px;resize:vertical;line-height:1.5;white-space:pre-wrap}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:9px 14px;font:inherit;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text);font-weight:600}
+.btn:hover{filter:brightness(.97)}
+.hint{font-size:13px;color:var(--muted);margin-top:8px}
+.warn{color:#b35900}
+@media (prefers-color-scheme:dark){.warn{color:#e3a35b}}
+.toast{color:var(--ok);font-weight:600;align-self:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>Повідомлення клієнту після дзвінка</h1>
+  <p>Заповни те, про що говорили, — текст збереться праворуч. Скопіюй або надішли одразу в месенджер.</p>
+</header>
+<main>
+  <form class="card" id="form" autocomplete="off">
+    <fieldset>
+      <legend>Клієнт</legend>
+      <div class="grid">
+        <label>Ім'я клієнта *<input id="client" placeholder="Марія" required></label>
+        <label>Ім'я дитини<input id="child" placeholder="Артем"></label>
+        <label>Вік дитини<input id="age" inputmode="numeric" placeholder="11"></label>
+        <label>Чим цікавиться<input id="interests" placeholder="комп'ютерні ігри"></label>
+        <label class="full">Що важливо клієнту (з розмови)<input id="important" placeholder="щоб дитина менше просто грала, а створювала щось своє"></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Програма і графік</legend>
+      <div class="grid">
+        <label class="full">Програма *<select id="product"></select></label>
+        <label>Дні занять<input id="days" placeholder="вівторок і четвер"></label>
+        <label>Час<input id="time" placeholder="17:00"></label>
+        <label class="full">Дата старту<input id="start" placeholder="12 листопада"></label>
+      </div>
+      <div class="price" id="priceInfo"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Які варіанти оплати показати</legend>
+      <div class="checks" id="payChecks"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Наступний крок</legend>
+      <div class="grid">
+        <label>Що далі<select id="step">
+          <option value="trial">Пробне заняття</option>
+          <option value="contract">Підписання договору</option>
+          <option value="visit">Зустріч у філії</option>
+          <option value="call">Передзвонити клієнту</option>
+        </select></label>
+        <label>Коли<input id="when" placeholder="у вівторок о 17:00"></label>
+        <label class="full">Акція / бонус (лише реальні)<input id="promo" placeholder="знижка 10% на перший рік при оплаті до 15.11"></label>
+        <div class="full checks"><label><input type="checkbox" id="fewSeats"> У групі залишилось мало місць (тільки якщо це правда)</label></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Менеджер (запам'ятовується)</legend>
+      <div class="grid">
+        <label>Твоє ім'я<input id="manager" placeholder="Ірина"></label>
+        <label>Твій телефон<input id="phone" inputmode="tel" placeholder="+380…"></label>
+      </div>
+    </fieldset>
+  </form>
+
+  <section class="card out" aria-live="polite">
+    <div class="seg" role="group" aria-label="Довжина">
+      <button type="button" data-len="short">Коротко</button>
+      <button type="button" data-len="std" aria-pressed="true">Стандарт</button>
+      <button type="button" data-len="long">Детально</button>
+    </div>
+    <label style="margin-top:12px">Текст (можна редагувати перед відправкою)
+      <textarea id="msg" spellcheck="true"></textarea>
+    </label>
+    <div class="actions">
+      <button class="btn primary" type="button" id="copy">📋 Скопіювати</button>
+      <button class="btn" type="button" id="variant">🔁 Інший варіант</button>
+      <a class="btn" id="tg" target="_blank" rel="noopener">Telegram</a>
+      <a class="btn" id="viber">Viber</a>
+      <a class="btn" id="wa" target="_blank" rel="noopener">WhatsApp</a>
+      <span class="toast" id="toast" hidden>Скопійовано ✓</span>
+    </div>
+    <p class="hint" id="warn"></p>
+  </section>
+</main>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
